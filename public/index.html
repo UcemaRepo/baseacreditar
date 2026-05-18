@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UCEMA Open — Acreditación</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="/socket.io/socket.io.js"></script>
+<style>
+  :root {
+    --bg: #0a0c10;
+    --surface: #111318;
+    --surface2: #181c23;
+    --border: #252a35;
+    --accent: #00d4aa;
+    --accent2: #0099ff;
+    --warn: #ff6b35;
+    --text: #e8ecf0;
+    --text2: #8892a0;
+    --text3: #4a5568;
+    --green: #00d4aa;
+    --red: #ff4d6d;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* ── HEADER ── */
+  header {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 0 1.5rem; height: 56px; display: flex;
+    align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header-logo {
+    font-family: 'DM Mono', monospace; font-size: 0.72rem;
+    letter-spacing: 0.14em; color: var(--accent); text-transform: uppercase;
+  }
+  .header-sync { display: flex; align-items: center; gap: 0.5rem; font-size: 0.78rem; color: var(--text2); }
+  .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .sync-dot.error { background: var(--red); box-shadow: 0 0 6px var(--red); }
+  .sync-dot.offline { background: var(--text3); box-shadow: none; }
+  .device-badge {
+    font-family: 'DM Mono', monospace; font-size: 0.7rem;
+    color: var(--text2); padding: 0.25rem 0.5rem;
+    border: 1px solid var(--border); border-radius: 4px; margin-left: 0.5rem;
+  }
+
+  /* ── STATS BAR ── */
+  .stats-bar {
+    display: grid; grid-template-columns: repeat(5, 1fr);
+    gap: 1px; background: var(--border); margin: 0;
+  }
+  .stat { background: var(--surface); padding: 1.1rem 1rem; }
+  .stat-label { font-size: 0.7rem; color: var(--text2); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.4rem; }
+  .stat-value { font-family: 'DM Mono', monospace; font-size: 1.85rem; font-weight: 500; line-height: 1; }
+  .stat-value.green { color: var(--green); }
+  .stat-value.orange { color: var(--warn); }
+  .stat-value.blue { color: var(--accent2); }
+  .stat-sub { font-size: 0.68rem; color: var(--text3); margin-top: 0.25rem; }
+
+  .progress-wrap { padding: 0.75rem 1.5rem; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 1rem; }
+  .progress-track { flex: 1; height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width 0.3s; }
+  .progress-pct { font-family: 'DM Mono', monospace; font-size: 0.82rem; color: var(--text2); }
+
+  .espontaneos-panel { padding: 0.85rem 1.5rem; background: #1a1410; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+  .espontaneos-label { font-family: 'DM Mono', monospace; font-size: 0.72rem; color: var(--warn); text-transform: uppercase; letter-spacing: 0.1em; }
+  .esp-btn { background: var(--warn); color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; font-size: 0.82rem; cursor: pointer; font-family: 'DM Sans'; }
+  .esp-btn:hover { opacity: 0.9; }
+  .esp-list-toggle { background: transparent; color: var(--warn); border: 1px solid var(--warn); padding: 0.45rem 0.9rem; border-radius: 6px; cursor: pointer; font-size: 0.78rem; font-family: 'DM Sans'; }
+  .esp-list-toggle:hover { background: rgba(255,107,53,0.1); }
+  .finalizar-btn { background: var(--accent2); color: #001a2e; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 700; font-size: 0.82rem; cursor: pointer; font-family: 'DM Sans'; }
+  .finalizar-btn:hover { opacity: 0.9; }
+  .esp-list { width: 100%; margin-top: 0.5rem; display: none; }
+  .esp-list.open { display: block; }
+  .esp-item { display: grid; grid-template-columns: 1fr auto auto auto; gap: 0.5rem; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+  .esp-item:last-child { border-bottom: none; }
+  .esp-item-info { color: var(--text); }
+  .esp-item-info small { color: var(--text2); font-size: 0.72rem; display: block; margin-top: 0.1rem; }
+  .esp-item button { background: transparent; border: 1px solid var(--border); color: var(--text2); padding: 0.25rem 0.6rem; border-radius: 4px; cursor: pointer; font-size: 0.72rem; }
+  .esp-item button:hover { border-color: var(--red); color: var(--red); }
+
+  /* ── CONTROLS ── */
+  .controls { padding: 1rem 1.5rem; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; gap: 0.75rem; align-items: center; }
+  .search-wrap { position: relative; flex: 1; max-width: 480px; }
+  .search-icon { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text2); font-size: 0.95rem; }
+  .search-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 0.65rem 1rem 0.65rem 2.5rem; color: var(--text); font-size: 0.92rem; outline: none; font-family: 'DM Sans'; }
+  .search-input:focus { border-color: var(--accent); }
+  .filter-btn { background: var(--surface2); color: var(--text2); border: 1px solid var(--border); padding: 0.55rem 0.95rem; border-radius: 6px; font-size: 0.8rem; cursor: pointer; font-family: 'DM Sans'; font-weight: 500; }
+  .filter-btn:hover { color: var(--text); }
+  .filter-btn.active { background: var(--accent); color: #001a14; border-color: var(--accent); font-weight: 700; }
+
+  .list-header { display: grid; grid-template-columns: 1fr 110px 130px 140px; padding: 0.7rem 1.5rem; font-size: 0.7rem; color: var(--text2); text-transform: uppercase; letter-spacing: 0.08em; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .attendee-list { padding: 0; }
+  .attendee-row { display: grid; grid-template-columns: 1fr 110px 130px 140px; padding: 0.9rem 1.5rem; border-bottom: 1px solid var(--border); align-items: center; transition: background 0.12s; cursor: pointer; }
+  .attendee-row:hover { background: var(--surface); }
+  .attendee-row.accredited { background: rgba(0,212,170,0.06); }
+  .att-name { font-weight: 600; font-size: 0.95rem; }
+  .att-meta { font-size: 0.75rem; color: var(--text2); margin-top: 0.15rem; }
+  .att-dni { font-family: 'DM Mono', monospace; color: var(--text2); font-size: 0.82rem; }
+  .att-canal { font-size: 0.78rem; color: var(--text2); }
+  .att-action { text-align: right; }
+  .acc-btn { background: var(--accent); color: #001a14; border: none; padding: 0.45rem 0.95rem; border-radius: 6px; font-weight: 700; font-size: 0.78rem; cursor: pointer; font-family: 'DM Sans'; }
+  .acc-btn:hover { opacity: 0.9; }
+  .acc-btn.done { background: transparent; color: var(--green); border: 1px solid var(--green); }
+  .acc-btn.done:hover { background: rgba(0,212,170,0.1); }
+
+  .empty-state { padding: 3rem 1.5rem; text-align: center; color: var(--text2); }
+
+  /* ── MODALS ── */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 200; align-items: center; justify-content: center; padding: 1rem; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.75rem; width: 100%; max-width: 440px; }
+  .modal h3 { font-size: 1.1rem; margin-bottom: 0.4rem; }
+  .modal p { font-size: 0.85rem; color: var(--text2); margin-bottom: 1.2rem; }
+  .modal-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
+  .modal-label { font-size: 0.85rem; color: var(--text2); }
+  .modal-counter { display: flex; align-items: center; gap: 0.75rem; }
+  .modal-counter button { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-size: 1.1rem; cursor: pointer; }
+  .modal-counter span { font-family: 'DM Mono', monospace; font-size: 1.05rem; min-width: 24px; text-align: center; }
+  .modal-field { margin-bottom: 0.9rem; }
+  .modal-field label { display: block; font-size: 0.78rem; color: var(--text2); margin-bottom: 0.3rem; }
+  .modal-input { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 7px; color: var(--text); padding: 0.55rem 0.8rem; font-size: 0.88rem; font-family: 'DM Sans'; outline: none; }
+  .modal-input:focus { border-color: var(--accent); }
+  .modal-actions { display: flex; gap: 0.6rem; margin-top: 1rem; }
+  .modal-actions button { flex: 1; padding: 0.7rem; border-radius: 7px; font-weight: 600; font-size: 0.85rem; cursor: pointer; border: none; font-family: 'DM Sans'; }
+  .modal-actions button:first-child { background: var(--accent); color: #001a14; }
+  .modal-actions button:last-child { background: var(--surface2); color: var(--text2); border: 1px solid var(--border); }
+
+  /* ── TOAST ── */
+  #toast { position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%) translateY(150%); background: var(--surface); border: 1px solid var(--border); padding: 0.85rem 1.5rem; border-radius: 8px; font-size: 0.88rem; transition: transform 0.3s; z-index: 300; }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+  #toast.green { border-color: var(--green); }
+  #toast.red { border-color: var(--red); }
+
+  /* ── PDF preview / report ── */
+  .pdf-preview { background: white; color: #111; padding: 1.25rem; border-radius: 8px; font-size: 0.85rem; max-height: 50vh; overflow-y: auto; }
+
+  /* ── ADMIN PANEL (carga inicial) ── */
+  #admin-panel { padding: 2rem 1.5rem; max-width: 600px; margin: 0 auto; }
+  .admin-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; }
+  .admin-card h3 { font-size: 1rem; margin-bottom: 0.5rem; }
+  .admin-card p { font-size: 0.85rem; color: var(--text2); margin-bottom: 1rem; line-height: 1.5; }
+  .admin-card input[type=file] { width: 100%; padding: 0.6rem; background: var(--bg); border: 1px dashed var(--border); border-radius: 8px; color: var(--text2); font-family: 'DM Sans'; }
+  .admin-card label.checkbox { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--text2); margin: 0.75rem 0; }
+  .admin-btn { width: 100%; background: var(--accent); color: #001a14; border: none; padding: 0.75rem; border-radius: 8px; font-weight: 700; cursor: pointer; font-family: 'DM Sans'; }
+  .admin-btn:hover { opacity: 0.9; }
+  .admin-btn.secondary { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+  .admin-btn.secondary:hover { color: var(--accent); border-color: var(--accent); }
+
+  @media (max-width: 800px) {
+    .stats-bar { grid-template-columns: repeat(2, 1fr); }
+    .list-header, .attendee-row { grid-template-columns: 1fr 100px; }
+    .h-canal, .att-canal, .h-dni, .att-dni-col { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-logo">UCEMA · Acreditación</div>
+  <div style="display:flex;align-items:center">
+    <div class="header-sync">
+      <span class="sync-dot" id="sync-dot"></span>
+      <span id="sync-label">Conectando…</span>
+      <span id="sync-time" style="margin-left:0.5rem;font-family:'DM Mono',monospace;font-size:0.72rem"></span>
+    </div>
+    <span class="device-badge" id="device-id-badge">—</span>
+    <button class="esp-list-toggle" style="margin-left:0.5rem" onclick="toggleAdmin()" id="admin-toggle">⚙</button>
+  </div>
+</header>
+
+<!-- ADMIN: carga inicial si no hay inscriptos -->
+<div id="admin-panel" style="display:none">
+  <div class="admin-card">
+    <h3>📋 Cargar lista de inscriptos</h3>
+    <p>Subí el XLSX con los inscriptos. Debe tener columnas: <strong>nombre</strong>, <strong>apellido</strong>, <strong>dni</strong>, y opcionalmente <strong>colegio</strong>, <strong>canal</strong>, <strong>email</strong>, <strong>telefono</strong>.</p>
+    <input type="file" id="upload-file" accept=".xlsx,.xls,.csv" />
+    <label class="checkbox"><input type="checkbox" id="upload-replace" /> Reemplazar lista actual (borra los inscriptos previos)</label>
+    <button class="admin-btn" onclick="uploadAttendees()">Subir y continuar</button>
+  </div>
+  <div class="admin-card">
+    <h3>↩ Volver</h3>
+    <button class="admin-btn secondary" onclick="toggleAdmin()">Cerrar panel</button>
+  </div>
+</div>
+
+<div id="app">
+  <div class="stats-bar">
+    <div class="stat"><div class="stat-label">Acreditados</div><div class="stat-value green" id="stat-acc">0</div><div class="stat-sub" id="stat-acc-pct">de 0</div></div>
+    <div class="stat"><div class="stat-label">Faltan</div><div class="stat-value orange" id="stat-missing">0</div><div class="stat-sub">inscriptos</div></div>
+    <div class="stat"><div class="stat-label">Espontáneos</div><div class="stat-value" style="color:var(--warn)" id="stat-esp">0</div><div class="stat-sub">no inscriptos</div></div>
+    <div class="stat"><div class="stat-label">Acompañantes</div><div class="stat-value blue" id="stat-acomp">0</div><div class="stat-sub">personas extra</div></div>
+    <div class="stat"><div class="stat-label">Total en sala</div><div class="stat-value" id="stat-total">0</div><div class="stat-sub">acred. + esp. + acomp.</div></div>
+  </div>
+
+  <div class="progress-wrap">
+    <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+    <div class="progress-pct" id="progress-pct">0%</div>
+  </div>
+
+  <div class="espontaneos-panel">
+    <div class="espontaneos-label">⚡ Espontáneo</div>
+    <button class="esp-btn" onclick="openEspModal()">+ Agregar espontáneo</button>
+    <button class="esp-list-toggle" id="esp-toggle" onclick="toggleEspList()">Ver lista (0)</button>
+    <div style="flex:1"></div>
+    <button class="finalizar-btn" onclick="openFinalizarModal()">Finalizar → PDF</button>
+    <div class="esp-list" id="esp-list"></div>
+  </div>
+
+  <div class="controls">
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input class="search-input" type="text" id="search" placeholder="Buscar por apellido, nombre o DNI…" oninput="render()" autofocus />
+    </div>
+    <button class="filter-btn active" id="f-all" onclick="setFilter('all')">Todos</button>
+    <button class="filter-btn" id="f-pending" onclick="setFilter('pending')">Pendientes</button>
+    <button class="filter-btn" id="f-done" onclick="setFilter('done')">Acreditados</button>
+  </div>
+
+  <div class="list-header">
+    <div>Asistente</div>
+    <div class="h-dni">DNI</div>
+    <div class="h-canal">Canal</div>
+    <div style="text-align:right">Acción</div>
+  </div>
+  <div class="attendee-list" id="list"></div>
+</div>
+
+<!-- Modales -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h3 id="modal-name">Nombre Apellido</h3>
+    <p>¿Cuántos acompañantes trae? (familiares, etc.)</p>
+    <div class="modal-row">
+      <div class="modal-label">Acompañantes</div>
+      <div class="modal-counter">
+        <button onclick="changeAcomp(-1)">−</button>
+        <span id="modal-acomp-val">0</span>
+        <button onclick="changeAcomp(+1)">+</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button onclick="confirmAccredit()">✓ Acreditar</button>
+      <button onclick="closeModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="esp-modal">
+  <div class="modal">
+    <h3>⚡ Agregar espontáneo</h3>
+    <p>Persona no inscripta. El contacto es opcional pero útil para seguimiento.</p>
+    <div class="modal-field"><label>Nombre y apellido *</label><input class="modal-input" type="text" id="esp-m-nombre" placeholder="Ej: Juan García" /></div>
+    <div class="modal-field"><label>DNI</label><input class="modal-input" type="text" id="esp-m-dni" placeholder="Opcional" /></div>
+    <div class="modal-field"><label>Teléfono / WhatsApp</label><input class="modal-input" type="text" id="esp-m-tel" placeholder="Opcional" /></div>
+    <div class="modal-field"><label>Email</label><input class="modal-input" type="email" id="esp-m-email" placeholder="Opcional" /></div>
+    <div class="modal-field">
+      <label>Acompañantes</label>
+      <div class="modal-row" style="margin-bottom:0">
+        <div class="modal-counter" style="margin-top:0.35rem">
+          <button onclick="changeEspAcomp(-1)">−</button>
+          <span id="esp-m-acomp-val">0</span>
+          <button onclick="changeEspAcomp(+1)">+</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button onclick="confirmEsp()" style="background:var(--warn);color:white">⚡ Agregar</button>
+      <button onclick="closeEspModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="pdf-modal">
+  <div class="modal" style="width:540px;max-width:95vw;max-height:90vh;overflow-y:auto">
+    <h3 style="margin-bottom:0.3rem">Resumen del evento</h3>
+    <p style="margin-bottom:1rem">Vista previa del reporte. Descargalo y abrílo en el browser para imprimir.</p>
+    <div class="pdf-preview" id="pdf-content"></div>
+    <div class="modal-actions">
+      <button onclick="imprimirPDF()" style="background:var(--accent2);color:#001a2e">⬇ Descargar reporte</button>
+      <button onclick="closePdfModal()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ─── ESTADO GLOBAL ────────────────────────────────────────────────────
+let ATTENDEES = [];
+let accredited = {};
+let espontaneos = [];
+let filter = 'all';
+let pendingModal = null;
+let modalAcomp = 0;
+let espModalAcomp = 0;
+let socket = null;
+
+const DEVICE_ID = (() => {
+  let id = localStorage.getItem('ucema_device_id');
+  if (!id) {
+    id = 'd_' + Math.random().toString(36).slice(2, 8);
+    localStorage.setItem('ucema_device_id', id);
+  }
+  return id;
+})();
+document.getElementById('device-id-badge').textContent = DEVICE_ID;
+
+// ─── CONEXIÓN ─────────────────────────────────────────────────────────
+function connect() {
+  socket = io({ query: { evento: 'ucema_open_mayo_2026' } });
+
+  socket.on('connect', () => { setSyncStatus('ok'); });
+  socket.on('disconnect', () => { setSyncStatus('error'); });
+  socket.on('connect_error', () => { setSyncStatus('error'); });
+
+  socket.on('state:update', (state) => {
+    ATTENDEES = state.attendees || [];
+    accredited = state.accreditations || {};
+    espontaneos = state.espontaneos || [];
+    setSyncStatus('ok');
+    document.getElementById('sync-time').textContent = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    // Si no hay inscriptos cargados, mostramos el panel admin
+    if (ATTENDEES.length === 0 && document.getElementById('admin-panel').style.display === 'none') {
+      toggleAdmin();
+      showToast('No hay inscriptos cargados — subí el XLSX', 'red');
+    }
+
+    updateStats();
+    render();
+    renderEspList();
+  });
+}
+
+function setSyncStatus(status) {
+  const dot = document.getElementById('sync-dot');
+  const label = document.getElementById('sync-label');
+  dot.className = 'sync-dot' + (status === 'error' ? ' error' : status === 'offline' ? ' offline' : '');
+  label.textContent = status === 'ok' ? 'En tiempo real' : status === 'error' ? 'Reconectando…' : 'Sin conexión';
+}
+
+// ─── ADMIN ────────────────────────────────────────────────────────────
+function toggleAdmin() {
+  const panel = document.getElementById('admin-panel');
+  const app = document.getElementById('app');
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  app.style.display = isOpen ? 'block' : 'none';
+}
+
+async function uploadAttendees() {
+  const fileInput = document.getElementById('upload-file');
+  if (!fileInput.files[0]) { showToast('Elegí un archivo', 'red'); return; }
+  const fd = new FormData();
+  fd.append('file', fileInput.files[0]);
+  fd.append('replace', document.getElementById('upload-replace').checked ? 'true' : 'false');
+  try {
+    const r = await fetch('/api/upload-attendees', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Error');
+    showToast(`✓ ${d.inserted} inscriptos cargados (${d.skipped} ignorados)`, 'green');
+    setTimeout(toggleAdmin, 800);
+  } catch (e) {
+    showToast('Error: ' + e.message, 'red');
+  }
+}
+
+// ─── ACCIONES (POST al backend; el WS hace el resto) ─────────────────
+async function apiPost(path, body) {
+  try {
+    const r = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...body, device_id: DEVICE_ID }),
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Error');
+    return d;
+  } catch (e) {
+    showToast('Error: ' + e.message, 'red');
+    throw e;
+  }
+}
+
+// ─── MODAL acreditación ───────────────────────────────────────────────
+function openModal(att) {
+  pendingModal = att;
+  modalAcomp = accredited[att.dni]?.acompaniantes || 0;
+  document.getElementById('modal-name').textContent = cap(att.nombre) + ' ' + cap(att.apellido);
+  document.getElementById('modal-acomp-val').textContent = modalAcomp;
+  document.getElementById('modal').classList.add('open');
+}
+function closeModal() { document.getElementById('modal').classList.remove('open'); pendingModal = null; }
+function changeAcomp(d) { modalAcomp = Math.max(0, modalAcomp + d); document.getElementById('modal-acomp-val').textContent = modalAcomp; }
+
+async function confirmAccredit() {
+  const att = pendingModal;
+  if (!att) return;
+  // Optimistic UI
+  accredited[att.dni] = { acompaniantes: modalAcomp };
+  closeModal();
+  updateStats();
+  render();
+  showToast('✓ ' + cap(att.nombre) + ' acreditado', 'green');
+  try {
+    await apiPost('/api/accredit', { dni: att.dni, acompaniantes: modalAcomp });
+  } catch (e) {
+    // Si falla, el próximo state:update corrige
+  }
+}
+
+async function deaccredit(att, event) {
+  if (event) event.stopPropagation();
+  if (!confirm('¿Quitar acreditación de ' + cap(att.nombre) + ' ' + cap(att.apellido) + '?')) return;
+  delete accredited[att.dni];
+  updateStats();
+  render();
+  await apiPost('/api/deaccredit', { dni: att.dni });
+}
+
+// ─── MODAL espontáneo ─────────────────────────────────────────────────
+function openEspModal() {
+  espModalAcomp = 0;
+  ['nombre','dni','tel','email'].forEach(k => document.getElementById('esp-m-' + k).value = '');
+  document.getElementById('esp-m-acomp-val').textContent = '0';
+  document.getElementById('esp-modal').classList.add('open');
+}
+function closeEspModal() { document.getElementById('esp-modal').classList.remove('open'); }
+function changeEspAcomp(d) { espModalAcomp = Math.max(0, espModalAcomp + d); document.getElementById('esp-m-acomp-val').textContent = espModalAcomp; }
+
+async function confirmEsp() {
+  const nombre = document.getElementById('esp-m-nombre').value.trim();
+  if (!nombre) { showToast('Falta el nombre', 'red'); return; }
+  const data = {
+    nombre,
+    dni: document.getElementById('esp-m-dni').value.trim(),
+    telefono: document.getElementById('esp-m-tel').value.trim(),
+    email: document.getElementById('esp-m-email').value.trim(),
+    acompaniantes: espModalAcomp,
+  };
+  closeEspModal();
+  showToast('⚡ Espontáneo agregado', 'green');
+  await apiPost('/api/espontaneo', data);
+}
+
+async function removeEspontaneo(id) {
+  if (!confirm('¿Quitar este espontáneo?')) return;
+  await fetch('/api/espontaneo/' + id + '?device_id=' + DEVICE_ID, { method: 'DELETE' });
+}
+
+function toggleEspList() {
+  document.getElementById('esp-list').classList.toggle('open');
+}
+
+function renderEspList() {
+  const list = document.getElementById('esp-list');
+  document.getElementById('esp-toggle').textContent = `Ver lista (${espontaneos.length})`;
+  if (espontaneos.length === 0) { list.innerHTML = '<p style="color:var(--text2);font-size:0.8rem;padding:0.5rem 0">Sin espontáneos aún.</p>'; return; }
+  list.innerHTML = espontaneos.map(e => `
+    <div class="esp-item">
+      <div class="esp-item-info">
+        ${e.nombre}${e.acompaniantes > 0 ? ` <span style="color:var(--accent2);font-size:0.75rem">+${e.acompaniantes}</span>` : ''}
+        <small>${e.dni || '—'} · ${e.telefono || 'sin tel'} · ${e.email || 'sin email'}</small>
+      </div>
+      <button onclick="removeEspontaneo('${e.id}')">✕</button>
+    </div>`).join('');
+}
+
+// ─── RENDER LISTA ─────────────────────────────────────────────────────
+function setFilter(f) {
+  filter = f;
+  ['all','pending','done'].forEach(x => document.getElementById('f-'+x).classList.toggle('active', x === f));
+  render();
+}
+
+function render() {
+  const q = document.getElementById('search').value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  let list = ATTENDEES.filter(a => {
+    if (filter === 'done' && !accredited[a.dni]) return false;
+    if (filter === 'pending' && accredited[a.dni]) return false;
+    if (!q) return true;
+    const hay = (a.nombre + ' ' + a.apellido + ' ' + a.dni).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    return hay.includes(q);
+  });
+  list.sort((a,b) => {
+    const aAcc = !!accredited[a.dni], bAcc = !!accredited[b.dni];
+    if (aAcc !== bAcc) return aAcc ? 1 : -1;
+    return (a.apellido || '').localeCompare(b.apellido || '', 'es');
+  });
+
+  const container = document.getElementById('list');
+  if (list.length === 0) { container.innerHTML = '<div class="empty-state">No hay resultados.</div>'; return; }
+
+  container.innerHTML = list.map(a => {
+    const isAcc = !!accredited[a.dni];
+    const acomp = accredited[a.dni]?.acompaniantes || 0;
+    return `<div class="attendee-row ${isAcc ? 'accredited' : ''}" onclick="${isAcc ? '' : `openModal(ATTENDEES.find(x=>x.dni==='${a.dni}'))`}">
+      <div>
+        <div class="att-name">${cap(a.nombre)} ${cap(a.apellido)}${isAcc && acomp > 0 ? ` <span style="font-size:0.72rem;color:var(--accent2);font-weight:400">+${acomp} acomp.</span>` : ''}</div>
+        <div class="att-meta">${a.colegio || ''}</div>
+      </div>
+      <div class="att-dni att-dni-col">${a.dni}</div>
+      <div class="att-canal">${a.canal || ''}</div>
+      <div class="att-action">
+        ${isAcc
+          ? `<button class="acc-btn done" onclick="deaccredit(ATTENDEES.find(x=>x.dni==='${a.dni}'), event)">✓ Listo</button>`
+          : `<button class="acc-btn" onclick="openModal(ATTENDEES.find(x=>x.dni==='${a.dni}')); event.stopPropagation()">Acreditar</button>`}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ─── STATS ────────────────────────────────────────────────────────────
+function updateStats() {
+  const TOTAL = ATTENDEES.length;
+  const accCount = Object.keys(accredited).length;
+  const totalAcomp = Object.values(accredited).reduce((s,v) => s + (v.acompaniantes || 0), 0);
+  const espCount = espontaneos.length;
+  const espAcomp = espontaneos.reduce((s,e) => s + (e.acompaniantes || 0), 0);
+  const pct = TOTAL > 0 ? Math.round(accCount / TOTAL * 100) : 0;
+
+  document.getElementById('stat-acc').textContent = accCount;
+  document.getElementById('stat-acc-pct').textContent = `de ${TOTAL} inscriptos`;
+  document.getElementById('stat-missing').textContent = TOTAL - accCount;
+  document.getElementById('stat-esp').textContent = espCount;
+  document.getElementById('stat-acomp').textContent = totalAcomp + espAcomp;
+  document.getElementById('stat-total').textContent = accCount + espCount + totalAcomp + espAcomp;
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-pct').textContent = pct + '%';
+}
+
+// ─── PDF / REPORTE ────────────────────────────────────────────────────
+function openFinalizarModal() {
+  buildPdfContent();
+  document.getElementById('pdf-modal').classList.add('open');
+}
+function closePdfModal() { document.getElementById('pdf-modal').classList.remove('open'); }
+
+function buildContactTable(rows, columns) {
+  if (rows.length === 0) return '<p style="font-size:0.8rem;color:#999">Ninguno.</p>';
+  return `<table><thead><tr>${columns.map(c => `<th>${c.label}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map(r => `<tr>${columns.map(c => `<td>${r[c.key] ?? '—'}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+}
+
+function buildPdfContent() {
+  const TOTAL = ATTENDEES.length;
+  const accCount = Object.keys(accredited).length;
+  const totalAcomp = Object.values(accredited).reduce((s,v) => s + (v.acompaniantes || 0), 0);
+  const espCount = espontaneos.length;
+  const espAcomp = espontaneos.reduce((s,e) => s + (e.acompaniantes || 0), 0);
+  const pct = TOTAL > 0 ? Math.round(accCount / TOTAL * 100) : 0;
+  const totalSala = accCount + espCount + totalAcomp + espAcomp;
+  const noShow = TOTAL - accCount;
+  const now = new Date().toLocaleString('es-AR', {dateStyle:'long', timeStyle:'short'});
+
+  const canalCount = {};
+  ATTENDEES.forEach(a => { if (accredited[a.dni]) canalCount[a.canal||'—'] = (canalCount[a.canal||'—']||0)+1; });
+  const topCanales = Object.entries(canalCount).sort((a,b)=>b[1]-a[1]).slice(0,8);
+
+  const asistentes = ATTENDEES.filter(a=>accredited[a.dni]).sort((a,b)=>(a.apellido||'').localeCompare(b.apellido||'','es'));
+  const noAsistentes = ATTENDEES.filter(a=>!accredited[a.dni]).sort((a,b)=>(a.apellido||'').localeCompare(b.apellido||'','es'));
+
+  const asisHTML = buildContactTable(
+    asistentes.map(a=>({nombre:cap(a.nombre)+' '+cap(a.apellido), colegio:a.colegio||'', canal:a.canal||'', email:a.email||'—', tel:a.telefono||'—'})),
+    [{key:'nombre',label:'Nombre'},{key:'colegio',label:'Colegio'},{key:'canal',label:'Canal'},{key:'email',label:'Email'},{key:'tel',label:'Tel'}]
+  );
+  const noAsisHTML = buildContactTable(
+    noAsistentes.map(a=>({nombre:cap(a.nombre)+' '+cap(a.apellido), colegio:a.colegio||'', canal:a.canal||'', email:a.email||'—', tel:a.telefono||'—'})),
+    [{key:'nombre',label:'Nombre'},{key:'colegio',label:'Colegio'},{key:'canal',label:'Canal'},{key:'email',label:'Email'},{key:'tel',label:'Tel'}]
+  );
+  const espHTML = buildContactTable(
+    espontaneos.map(e=>({nombre:e.nombre, dni:e.dni||'—', tel:e.telefono||'—', email:e.email||'—', acomp:e.acompaniantes||'—'})),
+    [{key:'nombre',label:'Nombre'},{key:'dni',label:'DNI'},{key:'tel',label:'Tel'},{key:'email',label:'Email'},{key:'acomp',label:'Acomp.'}]
+  );
+
+  document.getElementById('pdf-content').innerHTML = `
+    <h1>UCEMA Open — Mayo 2026</h1>
+    <div class="pdf-sub">Reporte · ${now}</div>
+    <div class="pdf-metrics">
+      <div class="pdf-metric"><div class="val">${accCount}</div><div class="lbl">Acreditados</div></div>
+      <div class="pdf-metric"><div class="val">${pct}%</div><div class="lbl">Tasa</div></div>
+      <div class="pdf-metric"><div class="val">${totalSala}</div><div class="lbl">En sala</div></div>
+      <div class="pdf-metric"><div class="val">${noShow}</div><div class="lbl">No shows</div></div>
+      <div class="pdf-metric"><div class="val">${espCount}</div><div class="lbl">Espontáneos</div></div>
+      <div class="pdf-metric"><div class="val">${totalAcomp+espAcomp}</div><div class="lbl">Acompañantes</div></div>
+    </div>
+    <div class="pdf-section-title">Canales</div>
+    <div class="pdf-canal-list">${topCanales.map(([c,n])=>`<span class="pdf-canal-tag">${c}: <strong>${n}</strong></span>`).join('')}</div>
+    <div class="pdf-section-title" style="margin-top:1.25rem">✅ Asistentes (${asistentes.length})</div>
+    <div class="pdf-table-wrap">${asisHTML}</div>
+    <div class="pdf-section-title" style="margin-top:1.5rem">❌ No asistentes (${noAsistentes.length})</div>
+    <div class="pdf-table-wrap">${noAsisHTML}</div>
+    ${espCount>0?`<div class="pdf-section-title" style="margin-top:1.5rem">⚡ Espontáneos (${espCount})</div><div class="pdf-table-wrap">${espHTML}</div>`:''}
+    <div class="pdf-footer">UCEMA — Dirección de Admisiones · ${new Date().getFullYear()}</div>`;
+}
+
+const PDF_STYLES = `* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'DM Sans', sans-serif; background: #fff; color: #111; padding: 2rem 2.5rem; max-width: 900px; margin: 0 auto; font-size: 0.85rem; }
+h1 { font-size: 1.3rem; font-weight: 700; margin-bottom: 0.2rem; }
+.pdf-sub { font-size: 0.75rem; color: #666; margin-bottom: 1.25rem; }
+.pdf-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.65rem; margin-bottom: 1.25rem; }
+.pdf-metric { background: #f4f7fa; border-radius: 7px; padding: 0.75rem; text-align: center; }
+.pdf-metric .val { font-size: 1.6rem; font-weight: 700; color: #0a0c10; font-family: 'DM Mono', monospace; }
+.pdf-metric .lbl { font-size: 0.62rem; color: #666; text-transform: uppercase; letter-spacing: 0.08em; }
+.pdf-section-title { font-size: 0.68rem; font-weight: 700; color: #333; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.4rem; border-bottom: 1.5px solid #e0e0e0; padding-bottom: 0.25rem; margin-top: 1rem; }
+.pdf-canal-list { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.75rem; }
+.pdf-canal-tag { background: #e8f4f0; border-radius: 4px; padding: 0.18rem 0.45rem; font-size: 0.72rem; color: #1a5c47; }
+.pdf-table-wrap { overflow-x: auto; margin-bottom: 0.5rem; }
+table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+thead tr { background: #f0f4f8; }
+th { text-align: left; padding: 0.35rem 0.5rem; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; color: #555; font-weight: 700; border-bottom: 1px solid #dde; }
+td { padding: 0.3rem 0.5rem; border-bottom: 1px solid #f0f0f0; color: #222; }
+tr:last-child td { border-bottom: none; }
+.pdf-footer { font-size: 0.62rem; color: #aaa; text-align: right; margin-top: 1.5rem; padding-top: 0.5rem; border-top: 1px solid #eee; }
+@media print { body { padding: 1cm; } tr { page-break-inside: avoid; } }`;
+
+function imprimirPDF() {
+  const contenido = document.getElementById('pdf-content').innerHTML;
+  const fullHTML = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>UCEMA Open — Reporte</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>${PDF_STYLES}</style>
+    <script>window.onload = function(){ window.print(); }<\/script>
+    </head><body>${contenido}</body></html>`;
+  const blob = new Blob([fullHTML], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'UCEMA_Open_Reporte.html';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  showToast('Archivo descargado — abrílo y se imprime', 'green');
+}
+
+// ─── UTILS ────────────────────────────────────────────────────────────
+function cap(s) { if (!s) return ''; return s.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' '); }
+
+let toastTimer;
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'show ' + (type || '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = ''; }, 2500);
+}
+
+// ─── BOOT ─────────────────────────────────────────────────────────────
+connect();
+</script>
+</body>
+</html>
