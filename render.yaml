@@ -1,0 +1,29 @@
+# render.yaml — Blueprint de Render
+# Crea el web service + la base PostgreSQL automáticamente al hacer "Create New Blueprint"
+# Docs: https://render.com/docs/blueprint-spec
+
+databases:
+  - name: ucema-acreditacion-db
+    databaseName: ucema_acreditacion
+    user: ucema_admin
+    plan: free        # 1GB storage, suficiente para este uso
+    region: oregon    # cambialo a 'frankfurt' o 'singapore' si querés menos latencia
+
+services:
+  - type: web
+    name: ucema-acreditacion
+    runtime: node
+    plan: free        # gratis, suficiente para 4+ iPads
+    region: oregon
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: EVENTO_ID
+        value: ucema_open_mayo_2026
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ucema-acreditacion-db
+          property: connectionString
