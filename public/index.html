@@ -20,6 +20,9 @@
     --text3: #4a5568;
     --green: #00d4aa;
     --red: #ff4d6d;
+    --vip: #ffb800;
+    --vip-glow: #ffb80055;
+    --vip-bg: #1c1608;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
@@ -47,7 +50,7 @@
 
   /* ── STATS BAR ── */
   .stats-bar {
-    display: grid; grid-template-columns: repeat(5, 1fr);
+    display: grid; grid-template-columns: repeat(6, 1fr);
     gap: 1px; background: var(--border); margin: 0;
   }
   .stat { background: var(--surface); padding: 1.1rem 1rem; }
@@ -92,9 +95,88 @@
 
   .list-header { display: grid; grid-template-columns: 1fr 110px 130px 140px; padding: 0.7rem 1.5rem; font-size: 0.7rem; color: var(--text2); text-transform: uppercase; letter-spacing: 0.08em; background: var(--surface); border-bottom: 1px solid var(--border); }
   .attendee-list { padding: 0; }
-  .attendee-row { display: grid; grid-template-columns: 1fr 110px 130px 140px; padding: 0.9rem 1.5rem; border-bottom: 1px solid var(--border); align-items: center; transition: background 0.12s; cursor: pointer; }
+  .attendee-row { display: grid; grid-template-columns: 1fr 110px 130px 140px; padding: 0.9rem 1.5rem; border-bottom: 1px solid var(--border); align-items: center; transition: background 0.12s; cursor: pointer; position: relative; }
   .attendee-row:hover { background: var(--surface); }
   .attendee-row.accredited { background: rgba(0,212,170,0.06); }
+
+  /* VIP: filas resaltadas con borde dorado y fondo cálido */
+  .attendee-row.vip {
+    background: linear-gradient(90deg, var(--vip-bg) 0%, transparent 60%);
+    border-left: 3px solid var(--vip);
+  }
+  .attendee-row.vip.accredited {
+    background: linear-gradient(90deg, var(--vip-bg) 0%, rgba(0,212,170,0.08) 60%);
+  }
+  .attendee-row.vip:hover { background: linear-gradient(90deg, #251d0c 0%, var(--surface) 60%); }
+  .vip-star { display: inline-block; color: var(--vip); margin-right: 0.4rem; text-shadow: 0 0 8px var(--vip-glow); font-size: 0.95rem; }
+  .vip-badge {
+    display: inline-block;
+    background: var(--vip);
+    color: #1a1200;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem;
+    font-weight: 700;
+    padding: 0.1rem 0.45rem;
+    border-radius: 3px;
+    letter-spacing: 0.08em;
+    margin-left: 0.4rem;
+    text-transform: uppercase;
+    vertical-align: middle;
+  }
+  .vip-meta {
+    font-size: 0.72rem;
+    color: var(--vip);
+    margin-top: 0.2rem;
+    opacity: 0.85;
+  }
+  .vip-meta strong { font-weight: 600; }
+
+  /* Modal VIP: cuando un admitido va a acreditarse, el modal se viste de gala */
+  .modal.vip-modal {
+    border: 1px solid var(--vip);
+    box-shadow: 0 0 40px var(--vip-glow), 0 0 0 1px var(--vip) inset;
+  }
+  .vip-banner {
+    background: linear-gradient(135deg, var(--vip), #ff9500);
+    color: #1a1200;
+    padding: 0.9rem 1rem;
+    border-radius: 8px;
+    margin: -1.75rem -1.75rem 1.25rem -1.75rem;
+    border-radius: 12px 12px 0 0;
+    text-align: center;
+  }
+  .vip-banner-title { font-size: 1.05rem; font-weight: 700; letter-spacing: 0.02em; }
+  .vip-banner-sub { font-size: 0.78rem; margin-top: 0.2rem; opacity: 0.75; font-weight: 500; }
+  .vip-info-block {
+    background: var(--surface2);
+    border: 1px solid var(--vip);
+    border-radius: 8px;
+    padding: 0.85rem 1rem;
+    margin-bottom: 1rem;
+  }
+  .vip-info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.35rem 0;
+    font-size: 0.85rem;
+  }
+  .vip-info-row + .vip-info-row { border-top: 1px solid var(--border); }
+  .vip-info-label { color: var(--text2); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  .vip-info-value { color: var(--text); font-weight: 600; text-align: right; }
+  .vip-asesor-cta {
+    background: rgba(255,184,0,0.1);
+    border: 1px dashed var(--vip);
+    border-radius: 7px;
+    padding: 0.65rem 0.85rem;
+    margin-bottom: 1rem;
+    font-size: 0.82rem;
+    color: var(--vip);
+    text-align: center;
+  }
+
+  /* Stat VIP en la barra superior */
+  .stat-value.vip-color { color: var(--vip); }
   .att-name { font-weight: 600; font-size: 0.95rem; }
   .att-meta { font-size: 0.75rem; color: var(--text2); margin-top: 0.15rem; }
   .att-dni { font-family: 'DM Mono', monospace; color: var(--text2); font-size: 0.82rem; }
@@ -149,9 +231,12 @@
   .admin-btn.secondary:hover { color: var(--accent); border-color: var(--accent); }
 
   @media (max-width: 800px) {
-    .stats-bar { grid-template-columns: repeat(2, 1fr); }
+    .stats-bar { grid-template-columns: repeat(3, 1fr); }
     .list-header, .attendee-row { grid-template-columns: 1fr 100px; }
     .h-canal, .att-canal, .h-dni, .att-dni-col { display: none; }
+  }
+  @media (max-width: 500px) {
+    .stats-bar { grid-template-columns: repeat(2, 1fr); }
   }
 </style>
 </head>
@@ -179,6 +264,15 @@
     <label class="checkbox"><input type="checkbox" id="upload-replace" /> Reemplazar lista actual (borra los inscriptos previos)</label>
     <button class="admin-btn" onclick="uploadAttendees()">Subir y continuar</button>
   </div>
+
+  <div class="admin-card" style="border-color: var(--vip);">
+    <h3>⭐ Cargar lista de admitidos (VIPs)</h3>
+    <p>Subí el XLSX de admitidos. Se cruzan con los inscriptos por <strong>DNI</strong> (o email como fallback) y se les pone una <span style="color:var(--vip)">estrella VIP</span>. Si algún admitido no estaba inscripto, se agrega automáticamente. Columnas esperadas: <strong>nombre</strong>, <strong>apellido</strong>, <strong>dni</strong>, <strong>email</strong>, <strong>carrera admitida</strong>, <strong>asesor</strong>.</p>
+    <input type="file" id="upload-vip-file" accept=".xlsx,.xls,.csv" />
+    <button class="admin-btn" style="background: var(--vip); color: #1a1200; margin-top: 0.75rem;" onclick="uploadAdmitidos()">⭐ Marcar admitidos</button>
+    <button class="admin-btn secondary" style="margin-top: 0.5rem; font-size: 0.78rem; padding: 0.45rem;" onclick="clearAdmitidos()">Desmarcar todos los VIPs</button>
+  </div>
+
   <div class="admin-card">
     <h3>↩ Volver</h3>
     <button class="admin-btn secondary" onclick="toggleAdmin()">Cerrar panel</button>
@@ -188,6 +282,7 @@
 <div id="app">
   <div class="stats-bar">
     <div class="stat"><div class="stat-label">Acreditados</div><div class="stat-value green" id="stat-acc">0</div><div class="stat-sub" id="stat-acc-pct">de 0</div></div>
+    <div class="stat"><div class="stat-label">⭐ VIPs</div><div class="stat-value vip-color" id="stat-vip">0</div><div class="stat-sub" id="stat-vip-sub">admitidos llegados</div></div>
     <div class="stat"><div class="stat-label">Faltan</div><div class="stat-value orange" id="stat-missing">0</div><div class="stat-sub">inscriptos</div></div>
     <div class="stat"><div class="stat-label">Espontáneos</div><div class="stat-value" style="color:var(--warn)" id="stat-esp">0</div><div class="stat-sub">no inscriptos</div></div>
     <div class="stat"><div class="stat-label">Acompañantes</div><div class="stat-value blue" id="stat-acomp">0</div><div class="stat-sub">personas extra</div></div>
@@ -229,8 +324,28 @@
 
 <!-- Modales -->
 <div class="modal-overlay" id="modal">
-  <div class="modal">
+  <div class="modal" id="modal-box">
+    <div class="vip-banner" id="modal-vip-banner" style="display:none">
+      <div class="vip-banner-title">🎉 ¡Es admitido UCEMA!</div>
+      <div class="vip-banner-sub">Recibir con la mejor onda</div>
+    </div>
     <h3 id="modal-name">Nombre Apellido</h3>
+
+    <div class="vip-info-block" id="modal-vip-info" style="display:none">
+      <div class="vip-info-row">
+        <span class="vip-info-label">Carrera</span>
+        <span class="vip-info-value" id="modal-vip-carrera">—</span>
+      </div>
+      <div class="vip-info-row">
+        <span class="vip-info-label">Asesor</span>
+        <span class="vip-info-value" id="modal-vip-asesor">—</span>
+      </div>
+    </div>
+
+    <div class="vip-asesor-cta" id="modal-vip-cta" style="display:none">
+      💬 Avisar a <strong id="modal-vip-cta-asesor"></strong> que <span id="modal-vip-cta-nombre"></span> ya llegó
+    </div>
+
     <p>¿Cuántos acompañantes trae? (familiares, etc.)</p>
     <div class="modal-row">
       <div class="modal-label">Acompañantes</div>
@@ -241,7 +356,7 @@
       </div>
     </div>
     <div class="modal-actions">
-      <button onclick="confirmAccredit()">✓ Acreditar</button>
+      <button onclick="confirmAccredit()" id="modal-confirm-btn">✓ Acreditar</button>
       <button onclick="closeModal()">Cancelar</button>
     </div>
   </div>
@@ -367,6 +482,33 @@ async function uploadAttendees() {
   }
 }
 
+async function uploadAdmitidos() {
+  const fileInput = document.getElementById('upload-vip-file');
+  if (!fileInput.files[0]) { showToast('Elegí un archivo de admitidos', 'red'); return; }
+  const fd = new FormData();
+  fd.append('file', fileInput.files[0]);
+  try {
+    const r = await fetch('/api/upload-admitidos', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Error');
+    showToast(`⭐ ${d.matched} marcados como VIP, ${d.created} agregados nuevos`, 'green');
+    setTimeout(toggleAdmin, 1200);
+  } catch (e) {
+    showToast('Error: ' + e.message, 'red');
+  }
+}
+
+async function clearAdmitidos() {
+  if (!confirm('¿Desmarcar a TODOS los admitidos? Esto borra carrera y asesor de los VIPs.')) return;
+  try {
+    const r = await fetch('/api/clear-admitidos', { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' });
+    const d = await r.json();
+    showToast(`${d.cleared} VIPs desmarcados`, 'green');
+  } catch (e) {
+    showToast('Error: ' + e.message, 'red');
+  }
+}
+
 // ─── ACCIONES (POST al backend; el WS hace el resto) ─────────────────
 async function apiPost(path, body) {
   try {
@@ -390,6 +532,40 @@ function openModal(att) {
   modalAcomp = accredited[att.dni]?.acompaniantes || 0;
   document.getElementById('modal-name').textContent = cap(att.nombre) + ' ' + cap(att.apellido);
   document.getElementById('modal-acomp-val').textContent = modalAcomp;
+
+  // VIP styling
+  const box = document.getElementById('modal-box');
+  const banner = document.getElementById('modal-vip-banner');
+  const infoBlock = document.getElementById('modal-vip-info');
+  const cta = document.getElementById('modal-vip-cta');
+  const confirmBtn = document.getElementById('modal-confirm-btn');
+
+  if (att.es_admitido) {
+    box.classList.add('vip-modal');
+    banner.style.display = 'block';
+    infoBlock.style.display = 'block';
+    document.getElementById('modal-vip-carrera').textContent = att.carrera_admitida || '—';
+    document.getElementById('modal-vip-asesor').textContent = att.asesor || '—';
+    if (att.asesor) {
+      cta.style.display = 'block';
+      document.getElementById('modal-vip-cta-asesor').textContent = att.asesor;
+      document.getElementById('modal-vip-cta-nombre').textContent = cap(att.nombre);
+    } else {
+      cta.style.display = 'none';
+    }
+    confirmBtn.style.background = 'var(--vip)';
+    confirmBtn.style.color = '#1a1200';
+    confirmBtn.textContent = '⭐ Acreditar VIP';
+  } else {
+    box.classList.remove('vip-modal');
+    banner.style.display = 'none';
+    infoBlock.style.display = 'none';
+    cta.style.display = 'none';
+    confirmBtn.style.background = '';
+    confirmBtn.style.color = '';
+    confirmBtn.textContent = '✓ Acreditar';
+  }
+
   document.getElementById('modal').classList.add('open');
 }
 function closeModal() { document.getElementById('modal').classList.remove('open'); pendingModal = null; }
@@ -403,7 +579,11 @@ async function confirmAccredit() {
   closeModal();
   updateStats();
   render();
-  showToast('✓ ' + cap(att.nombre) + ' acreditado', 'green');
+  if (att.es_admitido) {
+    showToast('⭐ VIP acreditado: ' + cap(att.nombre) + (att.asesor ? ' — avisar a ' + att.asesor : ''), 'green');
+  } else {
+    showToast('✓ ' + cap(att.nombre) + ' acreditado', 'green');
+  }
   try {
     await apiPost('/api/accredit', { dni: att.dni, acompaniantes: modalAcomp });
   } catch (e) {
@@ -496,17 +676,22 @@ function render() {
   container.innerHTML = list.map(a => {
     const isAcc = !!accredited[a.dni];
     const acomp = accredited[a.dni]?.acompaniantes || 0;
-    return `<div class="attendee-row ${isAcc ? 'accredited' : ''}" onclick="${isAcc ? '' : `openModal(ATTENDEES.find(x=>x.dni==='${a.dni}'))`}">
+    const isVip = !!a.es_admitido;
+    const rowClasses = ['attendee-row'];
+    if (isAcc) rowClasses.push('accredited');
+    if (isVip) rowClasses.push('vip');
+    return `<div class="${rowClasses.join(' ')}" onclick="${isAcc ? '' : `openModal(ATTENDEES.find(x=>x.dni==='${a.dni}'))`}">
       <div>
-        <div class="att-name">${cap(a.nombre)} ${cap(a.apellido)}${isAcc && acomp > 0 ? ` <span style="font-size:0.72rem;color:var(--accent2);font-weight:400">+${acomp} acomp.</span>` : ''}</div>
+        <div class="att-name">${isVip ? '<span class="vip-star">★</span>' : ''}${cap(a.nombre)} ${cap(a.apellido)}${isVip ? '<span class="vip-badge">Admitido</span>' : ''}${isAcc && acomp > 0 ? ` <span style="font-size:0.72rem;color:var(--accent2);font-weight:400">+${acomp} acomp.</span>` : ''}</div>
         <div class="att-meta">${a.colegio || ''}</div>
+        ${isVip ? `<div class="vip-meta">${a.carrera_admitida || ''}${a.carrera_admitida && a.asesor ? ' · ' : ''}${a.asesor ? `<strong>${a.asesor}</strong>` : ''}</div>` : ''}
       </div>
       <div class="att-dni att-dni-col">${a.dni}</div>
       <div class="att-canal">${a.canal || ''}</div>
       <div class="att-action">
         ${isAcc
           ? `<button class="acc-btn done" onclick="deaccredit(ATTENDEES.find(x=>x.dni==='${a.dni}'), event)">✓ Listo</button>`
-          : `<button class="acc-btn" onclick="openModal(ATTENDEES.find(x=>x.dni==='${a.dni}')); event.stopPropagation()">Acreditar</button>`}
+          : `<button class="acc-btn" onclick="openModal(ATTENDEES.find(x=>x.dni==='${a.dni}')); event.stopPropagation()">${isVip ? '⭐ Acreditar' : 'Acreditar'}</button>`}
       </div>
     </div>`;
   }).join('');
@@ -521,8 +706,14 @@ function updateStats() {
   const espAcomp = espontaneos.reduce((s,e) => s + (e.acompaniantes || 0), 0);
   const pct = TOTAL > 0 ? Math.round(accCount / TOTAL * 100) : 0;
 
+  // VIPs
+  const vips = ATTENDEES.filter(a => a.es_admitido);
+  const vipsAcc = vips.filter(a => accredited[a.dni]).length;
+
   document.getElementById('stat-acc').textContent = accCount;
   document.getElementById('stat-acc-pct').textContent = `de ${TOTAL} inscriptos`;
+  document.getElementById('stat-vip').textContent = vipsAcc;
+  document.getElementById('stat-vip-sub').textContent = `de ${vips.length} admitidos`;
   document.getElementById('stat-missing').textContent = TOTAL - accCount;
   document.getElementById('stat-esp').textContent = espCount;
   document.getElementById('stat-acomp').textContent = totalAcomp + espAcomp;
@@ -562,18 +753,50 @@ function buildPdfContent() {
   const asistentes = ATTENDEES.filter(a=>accredited[a.dni]).sort((a,b)=>(a.apellido||'').localeCompare(b.apellido||'','es'));
   const noAsistentes = ATTENDEES.filter(a=>!accredited[a.dni]).sort((a,b)=>(a.apellido||'').localeCompare(b.apellido||'','es'));
 
+  // VIPs (admitidos)
+  const vipsAll = ATTENDEES.filter(a => a.es_admitido).sort((a,b) => (a.apellido||'').localeCompare(b.apellido||'','es'));
+  const vipsAsistieron = vipsAll.filter(a => accredited[a.dni]);
+  const vipsFaltaron = vipsAll.filter(a => !accredited[a.dni]);
+  const vipPct = vipsAll.length > 0 ? Math.round(vipsAsistieron.length / vipsAll.length * 100) : 0;
+
   const asisHTML = buildContactTable(
-    asistentes.map(a=>({nombre:cap(a.nombre)+' '+cap(a.apellido), colegio:a.colegio||'', canal:a.canal||'', email:a.email||'—', tel:a.telefono||'—'})),
+    asistentes.map(a=>({nombre:(a.es_admitido?'★ ':'') + cap(a.nombre)+' '+cap(a.apellido), colegio:a.colegio||'', canal:a.canal||'', email:a.email||'—', tel:a.telefono||'—'})),
     [{key:'nombre',label:'Nombre'},{key:'colegio',label:'Colegio'},{key:'canal',label:'Canal'},{key:'email',label:'Email'},{key:'tel',label:'Tel'}]
   );
   const noAsisHTML = buildContactTable(
-    noAsistentes.map(a=>({nombre:cap(a.nombre)+' '+cap(a.apellido), colegio:a.colegio||'', canal:a.canal||'', email:a.email||'—', tel:a.telefono||'—'})),
+    noAsistentes.map(a=>({nombre:(a.es_admitido?'★ ':'') + cap(a.nombre)+' '+cap(a.apellido), colegio:a.colegio||'', canal:a.canal||'', email:a.email||'—', tel:a.telefono||'—'})),
     [{key:'nombre',label:'Nombre'},{key:'colegio',label:'Colegio'},{key:'canal',label:'Canal'},{key:'email',label:'Email'},{key:'tel',label:'Tel'}]
   );
   const espHTML = buildContactTable(
     espontaneos.map(e=>({nombre:e.nombre, dni:e.dni||'—', tel:e.telefono||'—', email:e.email||'—', acomp:e.acompaniantes||'—'})),
     [{key:'nombre',label:'Nombre'},{key:'dni',label:'DNI'},{key:'tel',label:'Tel'},{key:'email',label:'Email'},{key:'acomp',label:'Acomp.'}]
   );
+
+  const vipAsisHTML = buildContactTable(
+    vipsAsistieron.map(a=>({nombre:cap(a.nombre)+' '+cap(a.apellido), carrera:a.carrera_admitida||'—', asesor:a.asesor||'—', email:a.email||'—', tel:a.telefono||'—'})),
+    [{key:'nombre',label:'Nombre'},{key:'carrera',label:'Carrera admitida'},{key:'asesor',label:'Asesor'},{key:'email',label:'Email'},{key:'tel',label:'Tel'}]
+  );
+  const vipFaltaronHTML = buildContactTable(
+    vipsFaltaron.map(a=>({nombre:cap(a.nombre)+' '+cap(a.apellido), carrera:a.carrera_admitida||'—', asesor:a.asesor||'—', email:a.email||'—', tel:a.telefono||'—'})),
+    [{key:'nombre',label:'Nombre'},{key:'carrera',label:'Carrera admitida'},{key:'asesor',label:'Asesor'},{key:'email',label:'Email'},{key:'tel',label:'Tel'}]
+  );
+
+  const vipSection = vipsAll.length > 0 ? `
+    <div class="pdf-vip-banner">
+      <div class="pdf-vip-title">⭐ Admitidos UCEMA — Seguimiento prioritario</div>
+      <div class="pdf-vip-stats">
+        <span><strong>${vipsAsistieron.length}</strong> asistieron</span>
+        <span>·</span>
+        <span><strong>${vipsFaltaron.length}</strong> faltaron</span>
+        <span>·</span>
+        <span><strong>${vipPct}%</strong> de tasa</span>
+      </div>
+    </div>
+    <div class="pdf-section-title">⭐ Admitidos que vinieron (${vipsAsistieron.length})</div>
+    <div class="pdf-table-wrap">${vipAsisHTML}</div>
+    <div class="pdf-section-title" style="margin-top:1.25rem">⭐ Admitidos que faltaron — contactar para reagendar (${vipsFaltaron.length})</div>
+    <div class="pdf-table-wrap">${vipFaltaronHTML}</div>
+  ` : '';
 
   document.getElementById('pdf-content').innerHTML = `
     <h1>UCEMA Open — Mayo 2026</h1>
@@ -586,9 +809,10 @@ function buildPdfContent() {
       <div class="pdf-metric"><div class="val">${espCount}</div><div class="lbl">Espontáneos</div></div>
       <div class="pdf-metric"><div class="val">${totalAcomp+espAcomp}</div><div class="lbl">Acompañantes</div></div>
     </div>
-    <div class="pdf-section-title">Canales</div>
+    ${vipSection}
+    <div class="pdf-section-title" style="margin-top:1.25rem">Canales</div>
     <div class="pdf-canal-list">${topCanales.map(([c,n])=>`<span class="pdf-canal-tag">${c}: <strong>${n}</strong></span>`).join('')}</div>
-    <div class="pdf-section-title" style="margin-top:1.25rem">✅ Asistentes (${asistentes.length})</div>
+    <div class="pdf-section-title" style="margin-top:1.25rem">✅ Todos los asistentes (${asistentes.length})</div>
     <div class="pdf-table-wrap">${asisHTML}</div>
     <div class="pdf-section-title" style="margin-top:1.5rem">❌ No asistentes (${noAsistentes.length})</div>
     <div class="pdf-table-wrap">${noAsisHTML}</div>
@@ -614,6 +838,9 @@ th { text-align: left; padding: 0.35rem 0.5rem; font-size: 0.65rem; text-transfo
 td { padding: 0.3rem 0.5rem; border-bottom: 1px solid #f0f0f0; color: #222; }
 tr:last-child td { border-bottom: none; }
 .pdf-footer { font-size: 0.62rem; color: #aaa; text-align: right; margin-top: 1.5rem; padding-top: 0.5rem; border-top: 1px solid #eee; }
+.pdf-vip-banner { background: linear-gradient(135deg, #fff4d6, #ffe79c); border-left: 4px solid #d4a300; border-radius: 6px; padding: 0.75rem 1rem; margin: 1rem 0; }
+.pdf-vip-title { font-size: 0.88rem; font-weight: 700; color: #5c4400; margin-bottom: 0.2rem; }
+.pdf-vip-stats { font-size: 0.75rem; color: #6b5100; display: flex; gap: 0.5rem; }
 @media print { body { padding: 1cm; } tr { page-break-inside: avoid; } }`;
 
 function imprimirPDF() {
