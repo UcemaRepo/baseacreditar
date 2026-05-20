@@ -15,7 +15,13 @@ CREATE TABLE IF NOT EXISTS attendees (
   created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_attendees_evento ON attendees(evento);
+-- Columnas VIP: se agregan vía ALTER para no romper bases existentes
+ALTER TABLE attendees ADD COLUMN IF NOT EXISTS es_admitido     BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE attendees ADD COLUMN IF NOT EXISTS carrera_admitida TEXT;
+ALTER TABLE attendees ADD COLUMN IF NOT EXISTS asesor          TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_attendees_evento    ON attendees(evento);
+CREATE INDEX IF NOT EXISTS idx_attendees_admitido  ON attendees(evento) WHERE es_admitido = TRUE;
 
 -- Acreditaciones de inscriptos (registro del momento que se presentaron)
 CREATE TABLE IF NOT EXISTS accreditations (
