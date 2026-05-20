@@ -47,7 +47,8 @@ async function broadcastState(evento) {
 async function getFullState(evento) {
   const [attRes, accRes, espRes] = await Promise.all([
     query(
-      `SELECT dni, nombre, apellido, colegio, canal, email, telefono
+      `SELECT dni, nombre, apellido, colegio, canal, email, telefono,
+              es_admitido, carrera_admitida, asesor
          FROM attendees WHERE evento = $1 ORDER BY apellido, nombre`,
       [evento]
     ),
@@ -290,6 +291,156 @@ app.post('/api/upload-attendees', upload.single('file'), async (req, res) => {
     }
   } catch (e) {
     console.error('[POST /api/upload-attendees]', e);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// POST /api/upload-admitidos — subir XLSX de admitidos (VIP)
+// Cruza con attendees por DNI. Si no existe, los crea. Marca es_admitido = TRUE.
+// Espera columnas: nombre, apellido, dni, email, telefono, colegio, canal origen, carrera admitida, asesor
+app.post('/api/upload-admitidos', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ ok: false, error: 'No se recibió archivo' });
+    const evento = req.body.evento || EVENTO_DEFAULT;
+
+    const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+    if (rows.length === 0) {
+      return res.status(400).json({ ok: false, error: 'El archivo está vacío' });
+    }
+
+    const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    const first = rows[0];
+    const keys = Object.keys(first);
+    const findKey = (...candidates) => {
+      for (const k of keys) {
+        const nk = norm(k);
+        if (candidates.some((c) => nk === norm(c) || nk.includes(norm(c)))) return k;
+      }
+      return null;
+    };
+    const kDni      = findKey('dni', 'documento');
+    const kNombre   = findKey('nombre', 'first name');
+    const kApellido = findKey('apellido', 'last name');
+    const kEmail    = findKey('email', 'correo', 'mail');
+    const kTel      = findKey('telefono', 'phone', 'celular', 'whatsapp');
+    const kColegio  = findKey('colegio', 'school', 'institucion');
+    const kCanal    = findKey('canal', 'origen');
+    const kCarrera  = findKey('carrera admitida', 'carrera', 'programa');
+    const kAsesor   = findKey('asesor', 'advisor');
+
+    if (!kNombre || !kApellido) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Faltan columnas obligatorias: nombre y apellido',
+        detectedColumns: keys,
+      });
+    }
+
+    const client = await pool.connect();
+    let matched = 0;     // admitido que ya estaba en attendees, lo marcamos
+    let created = 0;     // admitido que no estaba, lo creamos
+    let skipped = 0;     // sin dni ni email, no podemos identificar
+    const matchedDnis = [];
+
+    try {
+      await client.query('BEGIN');
+
+      for (const row of rows) {
+        const dniRaw = kDni ? row[kDni] : '';
+        const dni = normalizeDni(dniRaw);
+        const email = kEmail ? String(row[kEmail] || '').trim() : '';
+        const nombre = String(row[kNombre] || '').trim();
+        const apellido = String(row[kApellido] || '').trim();
+        const colegio = kColegio ? String(row[kColegio] || '').trim() : '';
+        const canal = kCanal ? String(row[kCanal] || '').trim() : '';
+        const telefono = kTel ? String(row[kTel] || '').trim() : null;
+        const carrera = kCarrera ? String(row[kCarrera] || '').trim() : null;
+        const asesor = kAsesor ? String(row[kAsesor] || '').trim() : null;
+
+        if (!dni && !email) { skipped++; continue; }
+
+        // 1) Intento matchear por DNI
+        let existing = null;
+        if (dni) {
+          const r = await client.query(
+            'SELECT dni FROM attendees WHERE dni = $1 AND evento = $2',
+            [dni, evento]
+          );
+          if (r.rowCount > 0) existing = r.rows[0];
+        }
+        // 2) Si no hubo match por DNI, intento por email
+        if (!existing && email) {
+          const r = await client.query(
+            `SELECT dni FROM attendees WHERE LOWER(email) = LOWER($1) AND evento = $2 LIMIT 1`,
+            [email, evento]
+          );
+          if (r.rowCount > 0) existing = r.rows[0];
+        }
+
+        if (existing) {
+          // Actualiza marcando como admitido + suma carrera/asesor
+          await client.query(
+            `UPDATE attendees
+                SET es_admitido = TRUE,
+                    carrera_admitida = COALESCE($1, carrera_admitida),
+                    asesor = COALESCE($2, asesor),
+                    email = COALESCE(NULLIF($3,''), email),
+                    telefono = COALESCE($4, telefono)
+              WHERE dni = $5 AND evento = $6`,
+            [carrera, asesor, email, telefono, existing.dni, evento]
+          );
+          matched++;
+          matchedDnis.push(existing.dni);
+        } else {
+          // No estaba inscripto: lo creamos como admitido
+          // Si no tiene DNI, generamos uno sintético basado en email para mantener PK
+          const finalDni = dni || ('vip_' + Buffer.from(email).toString('hex').slice(0, 12));
+          await client.query(
+            `INSERT INTO attendees
+              (dni, nombre, apellido, colegio, canal, email, telefono, evento,
+               es_admitido, carrera_admitida, asesor)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE, $9, $10)
+             ON CONFLICT (dni) DO UPDATE SET
+               es_admitido = TRUE,
+               carrera_admitida = COALESCE(EXCLUDED.carrera_admitida, attendees.carrera_admitida),
+               asesor = COALESCE(EXCLUDED.asesor, attendees.asesor)`,
+            [finalDni, nombre, apellido, colegio, canal, email || null, telefono, evento, carrera, asesor]
+          );
+          created++;
+          matchedDnis.push(finalDni);
+        }
+      }
+
+      await client.query('COMMIT');
+      await broadcastState(evento);
+      res.json({ ok: true, matched, created, skipped, total: rows.length, dnis: matchedDnis });
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (e) {
+    console.error('[POST /api/upload-admitidos]', e);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// POST /api/clear-admitidos — desmarcar a todos los admitidos (por si se equivocaron y suben el XLSX que no es)
+app.post('/api/clear-admitidos', async (req, res) => {
+  try {
+    const evento = req.body.evento || EVENTO_DEFAULT;
+    const r = await query(
+      `UPDATE attendees SET es_admitido = FALSE, carrera_admitida = NULL, asesor = NULL
+       WHERE evento = $1 AND es_admitido = TRUE`,
+      [evento]
+    );
+    await broadcastState(evento);
+    res.json({ ok: true, cleared: r.rowCount });
+  } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }
 });
